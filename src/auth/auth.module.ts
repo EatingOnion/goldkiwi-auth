@@ -3,11 +3,13 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { TokenService } from './token.service';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-  imports: [PassportModule, ConfigModule],
+  imports: [PassportModule, ConfigModule, PrismaModule],
   controllers: [AuthController],
-  providers: [AuthService, GoogleStrategy],
+  providers: [AuthService, TokenService, GoogleStrategy],
 })
 export class AuthModule {}
