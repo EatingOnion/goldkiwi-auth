@@ -34,12 +34,15 @@ model RefreshToken {
   token String @unique
   userId String
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId String
+  client Client @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
   isRevoked Boolean @default(false)
-  
+
   @@index([userId])
   @@index([token])
+  @@index([clientId])
 }
 
 model Client {
@@ -47,8 +50,10 @@ model Client {
   id Int @id @default(autoincrement())
   name String
   clientId String @unique
+  clientSecret String
   redirectUri String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
+  refreshTokens RefreshToken[]
 }

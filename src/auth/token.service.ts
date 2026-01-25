@@ -79,12 +79,11 @@ export class TokenService implements OnModuleInit {
     );
   }
 
-  /** 리프레시 토큰 생성 후 DB 저장, 액세스 토큰과 쌍으로 반환 */
-  async issueTokenPair(user: {
-    id: string;
-    email?: string;
-    username?: string;
-  }): Promise<TokenPair> {
+  /** 리프레시 토큰 생성 후 DB 저장, 액세스 토큰과 쌍으로 반환 (clientId로 쿠키 검증용) */
+  async issueTokenPair(
+    user: { id: string; email?: string; username?: string },
+    clientId: string,
+  ): Promise<TokenPair> {
     const refreshToken = randomUUID();
     const expiresInDays =
       Number(this.configService.get<string>('JWT_REFRESH_EXPIRES_DAYS')) || 7;
@@ -95,6 +94,7 @@ export class TokenService implements OnModuleInit {
       data: {
         token: refreshToken,
         userId: user.id,
+        clientId,
         expiresAt,
       },
     });
@@ -112,8 +112,11 @@ export class TokenService implements OnModuleInit {
     };
   }
 
-  /** 리프레시 토큰 검증 후 새 액세스 토큰 발급 */
-  async refreshAccessToken(refreshToken: string): Promise<TokenPair> {
+  /** 리프레시 토큰 검증 후 새 액세스 토큰 발급. clientId 불일치 시 거부 (쿠키/클라이언트 검증). */
+  async refreshAccessToken(
+    refreshToken: string,
+    clientId: string,
+  ): Promise<TokenPair> {
     const stored = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
       include: { user: true },
@@ -126,17 +129,29 @@ export class TokenService implements OnModuleInit {
     ) {
       throw new UnauthorizedException('리프레시 토큰이 유효하지 않거나 만료되었습니다.');
     }
+    if (stored.clientId !== clientId) {
+      throw new UnauthorizedException('해당 리프레시 토큰은 이 클라이언트용이 아닙니다.');
+    }
 
     await this.revokeRefreshToken(refreshToken);
-    return this.issueTokenPair({
-      id: stored.user.id,
-      email: stored.user.email,
-      username: stored.user.username,
-    });
+    return this.issueTokenPair(
+      {
+        id: stored.user.id,
+        email: stored.user.email,
+        username: stored.user.username,
+      },
+      clientId,
+    );
   }
 
-  /** 리프레시 토큰 무효화 */
-  async revokeRefreshToken(token: string): Promise<void> {
+  /** 리프레시 토큰 무효화. clientId 일치 시에만 무효화 (클라이언트 검증). */
+  async revokeRefreshToken(token: string, clientId: string): Promise<void> {
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { token },
+    });
+    if (stored && stored.clientId !== clientId) {
+      throw new UnauthorizedException('해당 리프레시 토큰은 이 클라이언트용이 아닙니다.');
+    }
     await this.prisma.refreshToken.updateMany({
       where: { token },
       data: { isRevoked: true },

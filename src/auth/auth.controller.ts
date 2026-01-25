@@ -13,28 +13,42 @@ export class AuthController {
   @ApiOperation({
     summary: '토큰 발급',
     description:
-      'userId로 사용자 조회 후 private.key로 서명한 액세스/리프레시 토큰 발급',
+      'clientId/clientSecret 검증 후 userId로 사용자 조회하여 액세스/리프레시 토큰 발급 (쿠키·클라이언트 검증용)',
   })
   async issueToken(@Body() dto: IssueTokenDto) {
-    return this.authService.issueTokensByUserId(dto.userId);
+    return this.authService.issueTokensByUserId(
+      dto.userId,
+      dto.clientId,
+      dto.clientSecret,
+    );
   }
 
   @Post('refresh')
   @ApiOperation({
     summary: '토큰 갱신',
-    description: '리프레시 토큰으로 새 액세스/리프레시 토큰 쌍 발급',
+    description:
+      'clientId/clientSecret 검증 후 리프레시 토큰으로 새 액세스/리프레시 토큰 쌍 발급 (동일 클라이언트만 허용)',
   })
   async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshTokens(dto.refreshToken);
+    return this.authService.refreshTokens(
+      dto.refreshToken,
+      dto.clientId,
+      dto.clientSecret,
+    );
   }
 
   @Post('revoke')
   @ApiOperation({
     summary: '리프레시 토큰 무효화',
-    description: '리프레시 토큰 무효화 (로그아웃 등)',
+    description:
+      'clientId/clientSecret 검증 후 리프레시 토큰 무효화 (해당 클라이언트용 토큰만, 로그아웃 등)',
   })
   async revoke(@Body() dto: RefreshTokenDto) {
-    await this.authService.revokeRefreshToken(dto.refreshToken);
+    await this.authService.revokeRefreshToken(
+      dto.refreshToken,
+      dto.clientId,
+      dto.clientSecret,
+    );
     return { ok: true };
   }
 }
