@@ -133,7 +133,7 @@ export class TokenService implements OnModuleInit {
       throw new UnauthorizedException('해당 리프레시 토큰은 이 클라이언트용이 아닙니다.');
     }
 
-    await this.revokeRefreshToken(refreshToken);
+    await this.revokeRefreshToken(refreshToken, clientId);
     return this.issueTokenPair(
       {
         id: stored.user.id,
