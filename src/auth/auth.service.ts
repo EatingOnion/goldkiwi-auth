@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClientService } from './services/client.service';
 import {
@@ -6,6 +11,7 @@ import {
   TokenPair,
   AccessTokenPayload,
 } from './services/token.service';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -69,5 +75,96 @@ export class AuthService {
   ): Promise<void> {
     await this.clientService.validateClient(clientId, clientSecret);
     await this.tokenService.revokeRefreshToken(token, clientId);
+  }
+
+  /** 회원 가입 */
+  async signup(
+    username: string,
+    email: string,
+    password: string,
+    name: string,
+  ): Promise<{ id: string; username: string; email: string; name: string }> {
+    // 중복 체크
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ username }, { email }],
+        deletedAt: null,
+      },
+    });
+
+    if (existingUser) {
+      if (existingUser.username === username) {
+        throw new ConflictException('이미 사용 중인 사용자명입니다.');
+      }
+      if (existingUser.email === email) {
+        throw new ConflictException('이미 사용 중인 이메일입니다.');
+      }
+    }
+
+    // 비밀번호 해싱
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 사용자 생성
+    const user = await this.prisma.user.create({
+      data: {
+        username,
+        email,
+        password: hashedPassword,
+        name,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+      },
+    });
+
+    return user;
+  }
+
+  /** 로그인 (email 또는 username + password로 인증 후 토큰 발급) */
+  async login(
+    emailOrUsername: string | undefined,
+    password: string,
+    clientId: string,
+    clientSecret: string,
+  ): Promise<TokenPair> {
+    // clientId/clientSecret 검증
+    await this.clientService.validateClient(clientId, clientSecret);
+
+    // email 또는 username으로 사용자 조회
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: emailOrUsername }, { username: emailOrUsername }],
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.');
+    }
+
+    // 사용자 활성화 상태 확인
+    if (!user.isActive) {
+      throw new UnauthorizedException('비활성화된 계정입니다.');
+    }
+
+    // 비밀번호 검증
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.');
+    }
+
+    // 토큰 발급
+    return this.tokenService.issueTokenPair(
+      {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+      },
+      clientId,
+    );
   }
 }
