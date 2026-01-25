@@ -4,10 +4,12 @@ import {
   Controller,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { getRefreshTokenFromRequest } from './helpers/cookie-token.helper';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -15,6 +17,7 @@ import { IssueTokenDto } from './dto/issue-token.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from './constants';
 
 interface AuthenticatedRequest extends Request {
   user: { sub: string; email?: string; username?: string };
@@ -43,19 +46,37 @@ export class AuthController {
   @ApiOperation({
     summary: '로그인',
     description:
-      'email 또는 username과 password로 인증 후 액세스/리프레시 토큰 발급. clientId/clientSecret 검증 필요.',
+      'email 또는 username과 password로 인증 후 액세스/리프레시 토큰 발급. clientId/clientSecret 검증 필요. 토큰은 쿠키에 자동 설정됩니다.',
   })
-  async login(@Body() dto: LoginDto) {
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res) {
     const emailOrUsername = dto.email || dto.username;
     if (!emailOrUsername) {
       throw new BadRequestException('이메일 또는 사용자명 중 하나는 필수입니다.');
     }
-    return this.authService.login(
+    const tokenPair = await this.authService.login(
       emailOrUsername,
       dto.password,
       dto.clientId,
       dto.clientSecret,
     );
+
+    // 쿠키에 토큰 설정
+    const accessTokenExpires = new Date(Date.now() + 15 * 60 * 1000); // 15분
+    (res as Response).cookie(ACCESS_TOKEN_COOKIE, tokenPair.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires: accessTokenExpires,
+    });
+
+    (res as Response).cookie(REFRESH_TOKEN_COOKIE, tokenPair.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      expires: tokenPair.expiresAt,
+    });
+
+    return tokenPair;
   }
 
   @Post('token')
