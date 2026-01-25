@@ -1,6 +1,18 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Request } from 'express';
 import { AuthService } from './auth.service';
+import { getRefreshTokenFromRequest } from './helpers/cookie-token.helper';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { AccessTokenPayload } from './services/token.service';
 import { IssueTokenDto } from './dto/issue-token.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 
@@ -27,11 +39,17 @@ export class AuthController {
   @ApiOperation({
     summary: '토큰 갱신',
     description:
-      'clientId/clientSecret 검증 후 리프레시 토큰으로 새 액세스/리프레시 토큰 쌍 발급 (동일 클라이언트만 허용)',
+      '리프레시 토큰: body 또는 쿠키(refreshToken). clientId/clientSecret 검증 후 새 쌍 발급.',
   })
-  async refresh(@Body() dto: RefreshTokenDto) {
+  async refresh(@Req() req: Request, @Body() dto: RefreshTokenDto) {
+    const refreshToken = getRefreshTokenFromRequest(req, dto.refreshToken);
+    if (!refreshToken) {
+      throw new BadRequestException(
+        '리프레시 토큰이 필요합니다. body.refreshToken 또는 쿠키 refreshToken',
+      );
+    }
     return this.authService.refreshTokens(
-      dto.refreshToken,
+      refreshToken,
       dto.clientId,
       dto.clientSecret,
     );
@@ -41,14 +59,31 @@ export class AuthController {
   @ApiOperation({
     summary: '리프레시 토큰 무효화',
     description:
-      'clientId/clientSecret 검증 후 리프레시 토큰 무효화 (해당 클라이언트용 토큰만, 로그아웃 등)',
+      '리프레시 토큰: body 또는 쿠키(refreshToken). clientId/clientSecret 검증 후 무효화.',
   })
-  async revoke(@Body() dto: RefreshTokenDto) {
+  async revoke(@Req() req: Request, @Body() dto: RefreshTokenDto) {
+    const refreshToken = getRefreshTokenFromRequest(req, dto.refreshToken);
+    if (!refreshToken) {
+      throw new BadRequestException(
+        '리프레시 토큰이 필요합니다. body.refreshToken 또는 쿠키 refreshToken',
+      );
+    }
     await this.authService.revokeRefreshToken(
-      dto.refreshToken,
+      refreshToken,
       dto.clientId,
       dto.clientSecret,
     );
     return { ok: true };
+  }
+
+  @Post('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: '현재 사용자',
+    description:
+      '액세스 토큰: 쿠키(accessToken) 또는 Authorization Bearer. public.key로 검증 후 payload 반환.',
+  })
+  me(@CurrentUser() user: AccessTokenPayload) {
+    return user;
   }
 }

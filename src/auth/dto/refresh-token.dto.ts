@@ -1,7 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ClientCredentialsDto } from './client-credentials.dto';
 
 export class RefreshTokenDto extends ClientCredentialsDto {
-  @ApiProperty({ description: '리프레시 토큰' })
-  refreshToken!: string;
+  @ApiPropertyOptional({
+    description:
+      '리프레시 토큰. 없으면 쿠키 refreshToken 사용 (cookie-parser)',
+  })
+  refreshToken?: string;
 }

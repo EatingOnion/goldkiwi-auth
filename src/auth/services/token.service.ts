@@ -8,7 +8,7 @@ import * as jwt from 'jsonwebtoken';
 import * as path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export interface AccessTokenPayload {
   sub: string;

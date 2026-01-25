@@ -1,11 +1,11 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ClientService } from './client.service';
+import { ClientService } from './services/client.service';
 import {
   TokenService,
   TokenPair,
   AccessTokenPayload,
-} from './token.service';
+} from './services/token.service';
 
 @Injectable()
 export class AuthService {
