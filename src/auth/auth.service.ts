@@ -167,4 +167,83 @@ export class AuthService {
       clientId,
     );
   }
+
+  /** Google OAuth 로그인/회원가입 (기존 사용자 조회 또는 신규 생성 후 토큰 발급) */
+  async googleLoginOrSignup(
+    googleId: string,
+    email: string,
+    firstName: string,
+    lastName: string,
+    clientId: string,
+  ): Promise<TokenPair> {
+    const name = `${firstName} ${lastName}`.trim() || email.split('@')[0];
+
+    // googleId로 기존 사용자 조회 (findFirst: googleId + deletedAt 복합 조건)
+    let user = await this.prisma.user.findFirst({
+      where: { googleId, deletedAt: null },
+    });
+
+    if (user) {
+      if (!user.isActive) {
+        throw new UnauthorizedException('비활성화된 계정입니다.');
+      }
+      return this.tokenService.issueTokenPair(
+        { id: user.id, email: user.email, username: user.username },
+        clientId,
+      );
+    }
+
+    // 이메일로 기존 사용자 조회 (연동)
+    user = await this.prisma.user.findFirst({
+      where: { email, deletedAt: null },
+    });
+
+    if (user) {
+      // googleId 연동
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { googleId },
+      });
+      if (!user.isActive) {
+        throw new UnauthorizedException('비활성화된 계정입니다.');
+      }
+      return this.tokenService.issueTokenPair(
+        { id: user.id, email: user.email, username: user.username },
+        clientId,
+      );
+    }
+
+    // 신규 가입 (username: 이메일 prefix 또는 google_ 접두사)
+    let username = email.split('@')[0];
+    const existingWithUsername = await this.prisma.user.findFirst({
+      where: { username, deletedAt: null },
+    });
+    if (existingWithUsername) {
+      username = `google_${googleId.slice(0, 12)}`;
+    }
+    const hashedPassword = await bcrypt.hash(
+      `google_${googleId}_${Date.now()}`,
+      10,
+    );
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        googleId,
+        username,
+        email,
+        password: hashedPassword,
+        name,
+        isActive: true,
+      },
+    });
+
+    return this.tokenService.issueTokenPair(
+      {
+        id: newUser.id,
+        email: newUser.email,
+        username: newUser.username,
+      },
+      clientId,
+    );
+  }
 }

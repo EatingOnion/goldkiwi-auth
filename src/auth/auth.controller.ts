@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Post,
   Req,
   Res,
@@ -10,17 +11,28 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import type { Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { getRefreshTokenFromRequest } from './helpers/cookie-token.helper';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { IssueTokenDto } from './dto/issue-token.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { LogoutDto } from './dto/logout.dto';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from './constants';
 
 interface AuthenticatedRequest extends Request {
   user: { sub: string; email?: string; username?: string };
+}
+
+interface GoogleUser {
+  googleId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  accessToken: string;
+  refreshToken: string;
 }
 
 @ApiTags('auth')
@@ -134,6 +146,40 @@ export class AuthController {
     return { ok: true };
   }
 
+  @Post('logout')
+  @ApiOperation({
+    summary: '로그아웃',
+    description:
+      '리프레시 토큰 무효화 후 accessToken/refreshToken 쿠키 삭제. clientId/clientSecret은 리프레시 토큰이 있을 때만 필요.',
+  })
+  async logout(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Body() dto: LogoutDto,
+  ) {
+    const refreshToken = getRefreshTokenFromRequest(req, dto.refreshToken);
+    if (refreshToken && dto.clientId && dto.clientSecret) {
+      try {
+        await this.authService.revokeRefreshToken(
+          refreshToken,
+          dto.clientId,
+          dto.clientSecret,
+        );
+      } catch {
+        // revoke 실패해도 쿠키는 삭제
+      }
+    }
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/',
+    };
+    res.clearCookie(ACCESS_TOKEN_COOKIE, cookieOptions);
+    res.clearCookie(REFRESH_TOKEN_COOKIE, cookieOptions);
+    return res.status(200).json({ ok: true });
+  }
+
   @Post('me')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({
@@ -143,5 +189,63 @@ export class AuthController {
   })
   me(@Req() req) {
     return (req as AuthenticatedRequest).user;
+  }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google OAuth 시작', description: 'Google 로그인 페이지로 리디렉트' })
+  googleAuth() {
+    // AuthGuard가 Google로 리디렉트
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({
+    summary: 'Google OAuth 콜백',
+    description: 'Google 인증 후 토큰 발급, 쿠키 설정, 프론트엔드로 리디렉트',
+  })
+  async googleAuthCallback(
+    @Req() req: Request & { user: GoogleUser },
+    @Res() res: Response,
+  ) {
+    const googleUser = req.user;
+    if (!googleUser) {
+      return res.redirect(
+        `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google_auth_failed`,
+      );
+    }
+
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID ?? 'goldkiwi-front';
+
+    try {
+      const tokenPair = await this.authService.googleLoginOrSignup(
+        googleUser.googleId,
+        googleUser.email,
+        googleUser.firstName,
+        googleUser.lastName,
+        clientId,
+      );
+
+      const accessTokenExpires = new Date(Date.now() + 15 * 60 * 1000);
+      res.cookie(ACCESS_TOKEN_COOKIE, tokenPair.accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        expires: accessTokenExpires,
+      });
+      res.cookie(REFRESH_TOKEN_COOKIE, tokenPair.refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        expires: tokenPair.expiresAt,
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      return res.redirect(`${frontendUrl}?login=success`);
+    } catch (err) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const msg = err?.message || '로그인에 실패했습니다.';
+      return res.redirect(`${frontendUrl}/login?error=${encodeURIComponent(msg)}`);
+    }
   }
 }
