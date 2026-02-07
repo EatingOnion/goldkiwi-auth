@@ -18,6 +18,7 @@ model User {
   @@schema("auth")
   id String @id @default(uuid())
   googleId String? @unique
+  kakaoId String? @unique
   username String @unique
   email String @unique
   password String
@@ -27,6 +28,33 @@ model User {
   deletedAt DateTime?
   isActive Boolean @default(true)
   refreshTokens RefreshToken[]
+  activityLogs ActivityLog[]
+  loginLogs LoginLog[]
+}
+
+model LoginLog {
+  @@schema("auth")
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, createdAt])
+}
+
+model ActivityLog {
+  @@schema("auth")
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  description String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, createdAt])
 }
 
 model RefreshToken {
@@ -57,4 +85,17 @@ model Client {
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
   refreshTokens RefreshToken[]
+}
+
+model EmailVerification {
+  @@schema("auth")
+  id String @id @default(uuid())
+  email String
+  code String
+  purpose String // signup | password_reset
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
+  @@index([expiresAt])
 }
