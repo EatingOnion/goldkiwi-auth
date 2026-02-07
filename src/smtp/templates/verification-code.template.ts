@@ -6,6 +6,8 @@ export function getVerificationCodeMailContent(
   siteUrl?: string,
   email?: string,
   sentAt?: number,
+  username?: string,
+  name?: string,
 ): { subject: string; text: string; html: string } {
   const subject =
     purpose === 'signup'
@@ -35,12 +37,18 @@ function getVerificationUrl(
   purpose: VerificationPurpose,
   email?: string,
   sentAt?: number,
+  username?: string,
+  name?: string,
 ): string {
   const encodedEmail = email ? encodeURIComponent(email) : '';
   const sentParam = sentAt ? `&sent=${sentAt}` : '';
+  const usernameParam = username ? `&username=${encodeURIComponent(username)}` : '';
+  const nameParam = name ? `&name=${encodeURIComponent(name)}` : '';
   switch (purpose) {
     case 'signup':
-      return encodedEmail ? `${baseUrl}/signup?email=${encodedEmail}${sentParam}` : `${baseUrl}/signup`;
+      return encodedEmail
+        ? `${baseUrl}/signup?email=${encodedEmail}${sentParam}${usernameParam}${nameParam}`
+        : `${baseUrl}/signup`;
     case 'password_reset':
       return encodedEmail ? `${baseUrl}/forgot-password?email=${encodedEmail}${sentParam}` : `${baseUrl}/forgot-password`;
     case 'email_change':

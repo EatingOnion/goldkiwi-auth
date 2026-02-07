@@ -21,6 +21,7 @@ import { IssueTokenDto } from './dto/issue-token.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { VerifySignupDto } from './dto/verify-signup.dto';
+import { VerifySignupCodeDto } from './dto/verify-signup-code.dto';
 import { SendVerificationDto } from './dto/send-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -63,7 +64,22 @@ export class AuthController {
       '이메일로 6자리 인증 코드를 발송합니다. 회원가입(signup) 또는 비밀번호 찾기(password_reset) 시 사용. 3분 유효.',
   })
   async sendVerificationCode(@Body() dto: SendVerificationDto) {
-    return this.authService.sendVerificationCode(dto.email, dto.purpose);
+    return this.authService.sendVerificationCode(
+      dto.email,
+      dto.purpose,
+      dto.username,
+      dto.name,
+    );
+  }
+
+  @Post('verify-signup-code')
+  @ApiOperation({
+    summary: '회원가입 인증 코드 검증',
+    description:
+      '이메일 인증 코드의 유효성만 확인합니다. 회원가입 전에 먼저 호출하여 인증 후 회원가입을 진행하세요.',
+  })
+  async verifySignupCode(@Body() dto: VerifySignupCodeDto) {
+    return this.authService.verifySignupCode(dto.email, dto.code);
   }
 
   @Post('signup')

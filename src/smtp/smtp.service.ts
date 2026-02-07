@@ -31,6 +31,8 @@ export class SmtpService {
     to: string,
     code: string,
     purpose: VerificationPurpose,
+    username?: string,
+    name?: string,
   ): Promise<void> {
     if (!this.transporter) {
       throw new Error('SMTP가 설정되지 않았습니다. SMTP_HOST, SMTP_USER, SMTP_PASS를 확인하세요.');
@@ -44,6 +46,8 @@ export class SmtpService {
       siteUrl,
       to,
       sentAt,
+      username,
+      name,
     );
 
     await this.transporter.sendMail({

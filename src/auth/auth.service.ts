@@ -128,6 +128,8 @@ export class AuthService {
   async sendVerificationCode(
     email: string,
     purpose: 'signup' | 'password_reset',
+    username?: string,
+    name?: string,
   ): Promise<{ ok: boolean }> {
     if (purpose === 'signup') {
       const existing = await this.authRepository.findByEmail(email);
@@ -146,7 +148,22 @@ export class AuthService {
     const code = crypto.randomInt(100000, 999999).toString();
     await this.verificationRepository.deleteByEmailAndPurpose(email, purpose);
     await this.verificationRepository.create(email, code, purpose);
-    await this.smtpService.sendVerificationCode(email, code, purpose);
+    await this.smtpService.sendVerificationCode(email, code, purpose, username, name);
+    return { ok: true };
+  }
+
+  /** 회원가입용 인증 코드 검증 (코드 유효성만 확인, 별도 호출용) */
+  async verifySignupCode(email: string, code: string): Promise<{ ok: boolean }> {
+    const isValid = await this.verificationRepository.verify(
+      email.trim(),
+      code.trim(),
+      'signup',
+    );
+    if (!isValid) {
+      throw new BadRequestException(
+        '인증 코드가 올바르지 않거나 만료되었습니다. (3분 유효)',
+      );
+    }
     return { ok: true };
   }
 
