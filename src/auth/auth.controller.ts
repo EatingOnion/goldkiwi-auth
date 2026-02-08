@@ -24,6 +24,7 @@ import { VerifySignupDto } from './dto/verify-signup.dto';
 import { VerifySignupCodeDto } from './dto/verify-signup-code.dto';
 import { SendVerificationDto } from './dto/send-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { FindUsernameDto } from './dto/find-username.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { SendEmailChangeDto } from './dto/send-email-change.dto';
@@ -109,6 +110,19 @@ export class AuthController {
       dto.email,
       dto.verificationCode,
       dto.newPassword,
+    );
+  }
+
+  @Post('find-username')
+  @ApiOperation({
+    summary: '아이디 찾기',
+    description:
+      '이메일 인증 코드 검증 후 아이디를 반환합니다. send-verification-code로 find_username 용도로 코드 발송 후 사용.',
+  })
+  async findUsername(@Body() dto: FindUsernameDto) {
+    return this.authService.findUsername(
+      dto.email,
+      dto.verificationCode,
     );
   }
 

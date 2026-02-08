@@ -8,12 +8,14 @@ export class SendVerificationDto {
   email!: string;
 
   @ApiProperty({
-    description: '용도: signup(회원가입) | password_reset(비밀번호 찾기)',
-    enum: ['signup', 'password_reset'],
+    description: '용도: signup(회원가입) | password_reset(비밀번호 찾기) | find_username(아이디 찾기)',
+    enum: ['signup', 'password_reset', 'find_username'],
   })
   @IsNotEmpty({ message: '용도는 필수입니다.' })
-  @IsIn(['signup', 'password_reset'], { message: 'signup 또는 password_reset만 가능합니다.' })
-  purpose!: 'signup' | 'password_reset';
+  @IsIn(['signup', 'password_reset', 'find_username'], {
+    message: 'signup, password_reset, find_username 중 하나만 가능합니다.',
+  })
+  purpose!: 'signup' | 'password_reset' | 'find_username';
 
   @ApiPropertyOptional({ description: '회원가입용: 유저명 (이메일 링크로 폼 복원용)' })
   @IsOptional()

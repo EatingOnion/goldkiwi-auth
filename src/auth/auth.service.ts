@@ -124,10 +124,10 @@ export class AuthService {
     return { ok: true };
   }
 
-  /** 인증 코드 발송 (회원가입 / 비밀번호 찾기) - 3분 유효 */
+  /** 인증 코드 발송 (회원가입 / 비밀번호 찾기 / 아이디 찾기) - 3분 유효 */
   async sendVerificationCode(
     email: string,
-    purpose: 'signup' | 'password_reset',
+    purpose: 'signup' | 'password_reset' | 'find_username',
     username?: string,
     name?: string,
   ): Promise<{ ok: boolean }> {
@@ -136,11 +136,11 @@ export class AuthService {
       if (existing) {
         throw new ConflictException('이미 사용 중인 이메일입니다.');
       }
-    } else {
+    } else if (purpose === 'password_reset' || purpose === 'find_username') {
       const user = await this.authRepository.findByEmail(email);
       if (!user || user.googleId || user.kakaoId) {
         throw new BadRequestException(
-          '이메일 가입 계정이 없거나, 소셜 로그인 계정입니다. 이메일로 가입한 계정만 비밀번호를 찾을 수 있습니다.',
+          '이메일 가입 계정이 없거나, 소셜 로그인 계정입니다. 이메일로 가입한 계정만 찾을 수 있습니다.',
         );
       }
     }
@@ -150,6 +150,28 @@ export class AuthService {
     await this.verificationRepository.create(email, code, purpose);
     await this.smtpService.sendVerificationCode(email, code, purpose, username, name);
     return { ok: true };
+  }
+
+  /** 아이디 찾기 (이메일 인증 코드 검증 후 username 반환) */
+  async findUsername(email: string, verificationCode: string): Promise<{ username: string }> {
+    const isValid = await this.verificationRepository.verify(
+      email.trim(),
+      verificationCode.trim(),
+      'find_username',
+    );
+    if (!isValid) {
+      throw new BadRequestException(
+        '인증 코드가 올바르지 않거나 만료되었습니다. (3분 유효)',
+      );
+    }
+
+    const user = await this.authRepository.findByEmail(email);
+    if (!user || user.googleId || user.kakaoId) {
+      throw new BadRequestException('이메일 가입 계정이 아닙니다.');
+    }
+
+    await this.verificationRepository.deleteByEmailAndPurpose(email, 'find_username');
+    return { username: user.username };
   }
 
   /** 회원가입용 인증 코드 검증 (코드 유효성만 확인, 별도 호출용) */
