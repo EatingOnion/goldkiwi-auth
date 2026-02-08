@@ -1,4 +1,8 @@
-export type VerificationPurpose = 'signup' | 'password_reset' | 'email_change';
+export type VerificationPurpose =
+  | 'signup'
+  | 'password_reset'
+  | 'email_change'
+  | 'find_username';
 
 export function getVerificationCodeMailContent(
   code: string,
@@ -14,14 +18,18 @@ export function getVerificationCodeMailContent(
       ? '[골드키위] 이메일 인증 코드'
       : purpose === 'password_reset'
         ? '[골드키위] 비밀번호 재설정 인증 코드'
-        : '[골드키위] 이메일 변경 인증 코드';
+        : purpose === 'find_username'
+          ? '[골드키위] 아이디 찾기 인증 코드'
+          : '[골드키위] 이메일 변경 인증 코드';
 
   const intro =
     purpose === 'signup'
       ? '회원가입을 위한 이메일 인증 코드입니다.'
       : purpose === 'password_reset'
         ? '비밀번호 재설정을 위한 인증 코드입니다.'
-        : '이메일 변경을 위한 인증 코드입니다.';
+        : purpose === 'find_username'
+          ? '아이디 찾기를 위한 인증 코드입니다.'
+          : '이메일 변경을 위한 인증 코드입니다.';
 
   const text = `${intro}\n\n인증 코드: ${code}\n\n※ 이 코드는 3분간 유효합니다.`;
 
@@ -51,6 +59,8 @@ function getVerificationUrl(
         : `${baseUrl}/signup`;
     case 'password_reset':
       return encodedEmail ? `${baseUrl}/forgot-password?email=${encodedEmail}${sentParam}` : `${baseUrl}/forgot-password`;
+    case 'find_username':
+      return encodedEmail ? `${baseUrl}/find-username?email=${encodedEmail}${sentParam}` : `${baseUrl}/find-username`;
     case 'email_change':
       return `${baseUrl}/mypage?edit=profile${encodedEmail ? `&email=${encodedEmail}` : ''}${sentParam}`;
     default:

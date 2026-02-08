@@ -11,7 +11,7 @@ export class VerificationRepository {
   async create(
     email: string,
     code: string,
-    purpose: 'signup' | 'password_reset' | 'email_change',
+    purpose: 'signup' | 'password_reset' | 'email_change' | 'find_username',
   ): Promise<void> {
     const expiresAt = new Date(Date.now() + VERIFICATION_EXPIRY_MINUTES * 60 * 1000);
     await this.prisma.emailVerification.create({
@@ -23,7 +23,7 @@ export class VerificationRepository {
   async verify(
     email: string,
     code: string,
-    purpose: 'signup' | 'password_reset' | 'email_change',
+    purpose: 'signup' | 'password_reset' | 'email_change' | 'find_username',
   ): Promise<boolean> {
     const record = await this.prisma.emailVerification.findFirst({
       where: {
@@ -40,7 +40,7 @@ export class VerificationRepository {
   /** 검증 후 사용된 코드 삭제 (같은 이메일·purpose) */
   async deleteByEmailAndPurpose(
     email: string,
-    purpose: 'signup' | 'password_reset' | 'email_change',
+    purpose: 'signup' | 'password_reset' | 'email_change' | 'find_username',
   ): Promise<void> {
     await this.prisma.emailVerification.deleteMany({
       where: { email, purpose },
